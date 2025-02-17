@@ -8,92 +8,89 @@ import "@babylonjs/core/Materials/Node/Blocks";
 // if your model has .tga texture, uncomment following line.
 // import "@babylonjs/core/Materials/Textures/Loaders/tgaTextureLoader";
 // for load .bpmx file, we need to import following module.
-import "babylon-mmd/esm/Loader/Optimized/bpmxLoader";
 // if you want to use .pmx file, uncomment following line.
-// import "babylon-mmd/esm/Loader/pmxLoader";
+import "babylon-mmd/esm/Loader/pmxLoader";
 // if you want to use .pmd file, uncomment following line.
 // import "babylon-mmd/esm/Loader/pmdLoader";
 // for play `MmdAnimation` we need to import following two modules.
 import "babylon-mmd/esm/Runtime/Animation/mmdRuntimeCameraAnimation";
 import "babylon-mmd/esm/Runtime/Animation/mmdRuntimeModelAnimation";
 
-import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
-import type { Engine } from "@babylonjs/core/Engines/engine";
-import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
-import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
-import { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator";
-import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
-import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
-import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
-import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
-import { HavokPlugin } from "@babylonjs/core/Physics/v2/Plugins/havokPlugin";
-import { DefaultRenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline";
-import { Scene } from "@babylonjs/core/scene";
-import havokPhysics from "@babylonjs/havok";
-import { ShadowOnlyMaterial } from "@babylonjs/materials/shadowOnly/shadowOnlyMaterial";
-import type { MmdAnimation } from "babylon-mmd/esm/Loader/Animation/mmdAnimation";
-import type { MmdStandardMaterialBuilder } from "babylon-mmd/esm/Loader/mmdStandardMaterialBuilder";
-import type { BpmxLoader } from "babylon-mmd/esm/Loader/Optimized/bpmxLoader";
-import { BvmdLoader } from "babylon-mmd/esm/Loader/Optimized/bvmdLoader";
-import { SdefInjector } from "babylon-mmd/esm/Loader/sdefInjector";
-import { StreamAudioPlayer } from "babylon-mmd/esm/Runtime/Audio/streamAudioPlayer";
-import { MmdCamera } from "babylon-mmd/esm/Runtime/mmdCamera";
-import type { MmdMesh } from "babylon-mmd/esm/Runtime/mmdMesh";
-import { MmdPhysics } from "babylon-mmd/esm/Runtime/mmdPhysics";
-import { MmdRuntime } from "babylon-mmd/esm/Runtime/mmdRuntime";
-import { MmdPlayerControl } from "babylon-mmd/esm/Runtime/Util/mmdPlayerControl";
+import {
+    ArcRotateCamera,
+    Color3,
+    Color4,
+    DefaultRenderingPipeline,
+    DepthOfFieldEffectBlurLevel,
+    DirectionalLight,
+    HavokPlugin,
+    HemisphericLight,
+    ImageProcessingConfiguration,
+    Matrix,
+    SceneLoader,
+    ShadowGenerator,
+    SSRRenderingPipeline,
+    StandardMaterial,
+    TransformNode
+} from "@babylonjs/core";
+import type {Engine} from "@babylonjs/core/Engines/engine";
+import {Vector3} from "@babylonjs/core/Maths/math.vector";
+import {Scene} from "@babylonjs/core/scene";
+import HavocPhysics from "@babylonjs/havok";
+import type {BpmxLoader, MmdMesh, MmdStandardMaterialBuilder} from "babylon-mmd";
+import {BvmdLoader, MmdPhysics, MmdRuntime, PmxLoader, SdefInjector, StreamAudioPlayer} from "babylon-mmd";
+import {MmdCamera} from "babylon-mmd/esm/Runtime/mmdCamera";
 
-import type { ISceneBuilder } from "./baseRuntime";
+import type {ISceneBuilder} from "./baseRuntime";
 
 export class SceneBuilder implements ISceneBuilder {
-    public async build(canvas: HTMLCanvasElement, engine: Engine): Promise<Scene> {
-        // for apply SDEF on shadow, outline, depth rendering
+    public async build(_canvas: HTMLCanvasElement, engine: Engine): Promise<Scene> {
         SdefInjector.OverrideEngineCreateEffect(engine);
+        SceneLoader.RegisterPlugin(new PmxLoader());
 
-        // get bpmx loader and set some configurations.
+        engine.displayLoadingUI();
+
         const bpmxLoader = SceneLoader.GetPluginForExtension(".bpmx") as BpmxLoader;
         bpmxLoader.loggingEnabled = true;
         const materialBuilder = bpmxLoader.materialBuilder as MmdStandardMaterialBuilder;
-
-        // if you want override texture loading, uncomment following lines.
-        // materialBuilder.loadDiffuseTexture = (): void => { /* do nothing */ };
-        // materialBuilder.loadSphereTexture = (): void => { /* do nothing */ };
-        // materialBuilder.loadToonTexture = (): void => { /* do nothing */ };
-
-        // if you need outline rendering, comment out following line.
-        materialBuilder.loadOutlineRenderingProperties = (): void => { /* do nothing */ };
+        materialBuilder.useAlphaEvaluation = false;
+        // const alphaBlendMaterials = ["face02", "Facial02", "HL", "Hairshadow", "q302"];
+        // const alphaTestMaterials = ["q301"];
+        // materialBuilder.loadOutlineRenderingProperties = (material): void => {
+        //     if (!alphaBlendMaterials.includes(material.name) && !alphaTestMaterials.includes(material.name)) return;
+        //     material.transparencyMode = alphaBlendMaterials.includes(material.name)
+        //         ? Material.MATERIAL_ALPHABLEND
+        //         : Material.MATERIAL_ALPHATEST;
+        //     material.useAlphaFromDiffuseTexture = true;
+        //     material.diffuseTexture!.hasAlpha = true;
 
         const scene = new Scene(engine);
         scene.clearColor = new Color4(0.95, 0.95, 0.95, 1.0);
+        scene.enablePhysics(new Vector3(0, -9.8 * 10, 0), new HavokPlugin(true, await HavocPhysics()));
 
         const mmdRoot = new TransformNode("mmdRoot", scene);
-        mmdRoot.position.z = 20;
+        mmdRoot.position.z -= 50;
 
-        // mmd camera for play mmd camera animation
         const mmdCamera = new MmdCamera("mmdCamera", new Vector3(0, 10, 0), scene);
-        mmdCamera.maxZ = 300;
-        mmdCamera.minZ = 1;
+        mmdCamera.maxZ = 5000;
         mmdCamera.parent = mmdRoot;
 
-        const camera = new ArcRotateCamera("arcRotateCamera", 0, 0, 45, new Vector3(0, 10, 1), scene);
-        camera.maxZ = 1000;
-        camera.minZ = 0.1;
-        camera.setPosition(new Vector3(0, 10, -45));
-        camera.attachControl(canvas, false);
-        camera.inertia = 0.8;
-        camera.speed = 4;
+        const arcRotateCamera = new ArcRotateCamera("arcRotateCamera", 0, 0, 45, new Vector3(0, 10, 0), scene);
+        arcRotateCamera.maxZ = 5000;
+        arcRotateCamera.setPosition(new Vector3(0, 10, -45));
+        arcRotateCamera.attachControl(_canvas, false);
+        arcRotateCamera.inertia = 0.8;
+        arcRotateCamera.speed = 10;
 
         const hemisphericLight = new HemisphericLight("HemisphericLight", new Vector3(0, 1, 0), scene);
-        hemisphericLight.intensity = 0.4;
-        hemisphericLight.specular = new Color3(0, 0, 0);
-        hemisphericLight.groundColor = new Color3(1, 1, 1);
+        hemisphericLight.intensity = 0.3;
+        hemisphericLight.specular.set(0, 0, 0);
+        hemisphericLight.groundColor.set(1, 1, 1);
 
-        const directionalLight = new DirectionalLight("DirectionalLight", new Vector3(0.5, -1, 1), scene);
-        directionalLight.intensity = 0.6;
-        // set frustum size manually for optimize shadow rendering
-        directionalLight.autoCalcShadowZBounds = false;
-        directionalLight.autoUpdateExtends = false;
+        const directionalLight = new DirectionalLight("directionalLight", new Vector3(0.5, -1, 1), scene);
+        directionalLight.intensity = 0.7;
+        directionalLight.autoCalcShadowZBounds = true;
+        directionalLight.autoUpdateExtends = true;
         directionalLight.shadowMaxZ = 20;
         directionalLight.shadowMinZ = -20;
         directionalLight.orthoTop = 18;
@@ -104,147 +101,122 @@ export class SceneBuilder implements ISceneBuilder {
 
         const shadowGenerator = new ShadowGenerator(1024, directionalLight, true);
         shadowGenerator.usePercentageCloserFiltering = true;
-        shadowGenerator.forceBackFacesOnly = true;
+        shadowGenerator.forceBackFacesOnly = false;
+        shadowGenerator.bias = 0.01;
         shadowGenerator.filteringQuality = ShadowGenerator.QUALITY_MEDIUM;
         shadowGenerator.frustumEdgeFalloff = 0.1;
 
-        const ground = CreateGround("ground1", { width: 100, height: 100, subdivisions: 2, updatable: false }, scene);
-        const shadowOnlyMaterial = ground.material = new ShadowOnlyMaterial("shadowOnly", scene);
-        shadowOnlyMaterial.activeLight = directionalLight;
-        shadowOnlyMaterial.alpha = 0.4;
+
+
+        const ground = await SceneLoader.ImportMeshAsync(
+            "ground",
+            "res/stage/RedialC_EpRoomFuu Ver1.12/",
+            "EPF.pmx", scene,
+            (event) => engine.loadingUIText = `Loading model... ${event.loaded}/${event.total} (${Math.floor(event.loaded * 100 / event.total)}%)`)
+            .then((result) => result.meshes[0] as MmdMesh);
+        const groundMaterial = ground.material = new StandardMaterial("groundMaterial", scene);
+        groundMaterial.diffuseColor = new Color3(1.02, 1.02, 1.02);
         ground.receiveShadows = true;
-        ground.parent = mmdRoot;
 
-        // create mmd runtime with physics
-        const mmdRuntime = new MmdRuntime(scene, new MmdPhysics(scene));
-        mmdRuntime.loggingEnabled = true;
+        const modelMesh = await SceneLoader.ImportMeshAsync(
+            "",
+            "res/model/",
+            "YYB marshmallow miku.bpmx", scene,
+            (event) => engine.loadingUIText = `Loading model... ${event.loaded}/${event.total} (${Math.floor(event.loaded * 100 / event.total)}%)`)
+            .then((result) => result.meshes[0] as MmdMesh);
+        for (const mesh of modelMesh.metadata.meshes) mesh.receiveShadows = true;
+        shadowGenerator.addShadowCaster(modelMesh);
+
+        const mmdRuntime = new MmdRuntime(scene,  new MmdPhysics(scene));
         mmdRuntime.register(scene);
+        mmdRuntime.setCamera(mmdCamera);
 
-        // set audio player
-        const audioPlayer = new StreamAudioPlayer(scene);
-        audioPlayer.preservesPitch = false;
-        // you need to get this file by yourself from https://youtu.be/y__uZETTuL8
-        audioPlayer.source = "res/private_test/motion/melancholy_night/melancholy_night.mp3";
-        mmdRuntime.setAudioPlayer(audioPlayer);
-
-        // play before loading. this will cause the audio to play first before all assets are loaded.
-        // playing the audio first can help ease the user's patience
         mmdRuntime.playAnimation();
 
-        // create youtube like player control
-        const mmdPlayerControl = new MmdPlayerControl(scene, mmdRuntime, audioPlayer);
-        mmdPlayerControl.showPlayerControl();
 
-        // show loading screen
-        engine.displayLoadingUI();
 
-        const loadingTexts: string[] = [];
-        const updateLoadingText = (updateIndex: number, text: string): void => {
-            loadingTexts[updateIndex] = text;
-            engine.loadingUIText = "<br/><br/><br/><br/>" + loadingTexts.join("<br/><br/>");
-        };
+        const audioPlayer = new StreamAudioPlayer(scene);
+        audioPlayer.preservesPitch = false;
+        audioPlayer.source = "res/music/melancholy_night.mp3";
+        mmdRuntime.setAudioPlayer(audioPlayer);
 
-        const promises: Promise<any>[] = [];
-
-        // for load .bvmd file, we use BvmdLoader. if you want to load .vmd or .vpd file, use VmdLoader / VpdLoader
+        const mmdModel = mmdRuntime.createMmdModel(modelMesh);
         const bvmdLoader = new BvmdLoader(scene);
-        bvmdLoader.loggingEnabled = true;
-
-        // you need to get this file by yourself from https://www.nicovideo.jp/watch/sm41164308
-        promises.push(bvmdLoader.loadAsync("motion", "res/private_test/motion/melancholy_night/motion.bvmd",
-            (event) => updateLoadingText(0, `Loading motion... ${event.loaded}/${event.total} (${Math.floor(event.loaded * 100 / event.total)}%)`))
+        const modelMotion = await bvmdLoader.loadAsync("model_motion_1",
+            "res/animation/メランコリ・ナイト.bvmd"
+        );
+        const cameraMotion = await bvmdLoader.loadAsync("camera_motion_1",
+            "res/animation/メランコリ・ナイト_カメラ.bvmd"
         );
 
-        // you need to get this file by yourself from https://www.deviantart.com/sanmuyyb/art/YYB-Hatsune-Miku-10th-DL-702119716
-        promises.push(SceneLoader.ImportMeshAsync(
-            undefined,
-            "res/private_test/model/",
-            "YYB Hatsune Miku_10th.bpmx",
-            scene,
-            (event) => updateLoadingText(1, `Loading model... ${event.loaded}/${event.total} (${Math.floor(event.loaded * 100 / event.total)}%)`)
-        ));
+        mmdModel.addAnimation(modelMotion);
+        mmdModel.setAnimation("model_motion_1");
 
-        promises.push((async(): Promise<void> => {
-            updateLoadingText(2, "Loading physics engine...");
-            const havokInstance = await havokPhysics();
-            const havokPlugin = new HavokPlugin(true, havokInstance);
-            scene.enablePhysics(new Vector3(0, -98, 0), havokPlugin);
-            updateLoadingText(2, "Loading physics engine... Done");
-        })());
+        mmdCamera.addAnimation(cameraMotion);
+        mmdCamera.setAnimation("camera_motion_1");
 
-        // wait for all promises. parallel loading is faster than sequential loading.
-        const [mmdAnimation, { meshes: [modelMesh] }] = await Promise.all(promises);
-        if (!((_mmdAnimation: any): _mmdAnimation is MmdAnimation => true)(mmdAnimation)) throw new Error("unreachable");
-        if (!((_mesh: any): _mesh is MmdMesh => true)(modelMesh)) throw new Error("unreachable");
-
-        // hide loading screen
         scene.onAfterRenderObservable.addOnce(() => engine.hideLoadingUI());
 
-        mmdRuntime.setCamera(mmdCamera);
-        mmdCamera.addAnimation(mmdAnimation);
-        mmdCamera.setAnimation("motion");
+        const ssrRenderingPipeline = new SSRRenderingPipeline(
+            "ssr",
+            scene,
+            [mmdCamera, arcRotateCamera],
+            false
+        );
+        ssrRenderingPipeline.step = 32;
+        ssrRenderingPipeline.maxSteps = 128;
+        ssrRenderingPipeline.maxDistance = 500;
+        ssrRenderingPipeline.enableSmoothReflections = false;
+        ssrRenderingPipeline.enableAutomaticThicknessComputation = false;
+        ssrRenderingPipeline.blurDownsample = 2;
+        ssrRenderingPipeline.ssrDownsample = 2;
+        ssrRenderingPipeline.thickness = 0.1;
+        ssrRenderingPipeline.selfCollisionNumSkip = 2;
+        ssrRenderingPipeline.blurDispersionStrength = 0;
+        ssrRenderingPipeline.roughnessFactor = 0.1;
+        ssrRenderingPipeline.reflectivityThreshold = 0.9;
+        ssrRenderingPipeline.samples = 4;
 
-        {
-            modelMesh.parent = mmdRoot;
-
-            for (const mesh of modelMesh.metadata.meshes) mesh.receiveShadows = true;
-            shadowGenerator.addShadowCaster(modelMesh);
-
-            const mmdModel = mmdRuntime.createMmdModel(modelMesh);
-            mmdModel.addAnimation(mmdAnimation);
-            mmdModel.setAnimation("motion");
-
-            // make sure directional light follow the model
-            const bodyBone = mmdModel.runtimeBones.find((bone) => bone.name === "センター");
-            const boneWorldMatrix = new Matrix();
-
-            scene.onBeforeRenderObservable.add(() => {
-                bodyBone!.getWorldMatrixToRef(boneWorldMatrix).multiplyToRef(modelMesh.getWorldMatrix(), boneWorldMatrix);
-                boneWorldMatrix.getTranslationToRef(directionalLight.position);
-                directionalLight.position.y -= 10;
-            });
-        }
-
-        // optimize scene when all assets are loaded (unstable)
-        scene.onAfterRenderObservable.addOnce(() => {
-            scene.freezeMaterials();
-
-            const meshes = scene.meshes;
-            for (let i = 0, len = meshes.length; i < len; ++i) {
-                const mesh = meshes[i];
-                mesh.freezeWorldMatrix();
-                mesh.doNotSyncBoundingInfo = true;
-                mesh.isPickable = false;
-                mesh.doNotSyncBoundingInfo = true;
-                mesh.alwaysSelectAsActiveMesh = true;
-            }
-
-            scene.skipPointerMovePicking = true;
-            scene.skipPointerDownPicking = true;
-            scene.skipPointerUpPicking = true;
-            scene.skipFrustumClipping = true;
-            scene.blockMaterialDirtyMechanism = true;
-        });
-
-        // if you want ground collision, uncomment following lines.
-        // const groundRigidBody = new PhysicsBody(ground, PhysicsMotionType.STATIC, true, scene);
-        // groundRigidBody.shape = new PhysicsShapeBox(
-        //     new Vector3(0, -1, 0),
-        //     new Quaternion(),
-        //     new Vector3(100, 2, 100), scene);
-
-        const defaultPipeline = new DefaultRenderingPipeline("default", true, scene, [mmdCamera, camera]);
+        const defaultPipeline = new DefaultRenderingPipeline("default", true, scene, [mmdCamera, arcRotateCamera]);
         defaultPipeline.samples = 4;
-        defaultPipeline.bloomEnabled = false;
+        defaultPipeline.bloomEnabled = true;
         defaultPipeline.chromaticAberrationEnabled = true;
         defaultPipeline.chromaticAberration.aberrationAmount = 1;
-        defaultPipeline.depthOfFieldEnabled = false;
+        defaultPipeline.depthOfFieldEnabled = true;
+        defaultPipeline.depthOfFieldBlurLevel = DepthOfFieldEffectBlurLevel.Low;
         defaultPipeline.fxaaEnabled = true;
-        defaultPipeline.imageProcessingEnabled = false;
+        defaultPipeline.imageProcessingEnabled = true;
+        defaultPipeline.imageProcessing.toneMappingEnabled = true;
+        defaultPipeline.imageProcessing.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES;
+        defaultPipeline.imageProcessing.vignetteWeight = 0.5;
+        defaultPipeline.imageProcessing.vignetteStretch = 0.5;
+        defaultPipeline.imageProcessing.vignetteColor = new Color4(0, 0, 0, 0);
+        defaultPipeline.imageProcessing.vignetteEnabled = true;
 
-        // switch camera when double click
+        defaultPipeline.depthOfField.fStop = 100;
+        defaultPipeline.depthOfField.focalLength = 500;
+
+        const rotationMatrix = new Matrix();
+        const cameraNormal = new Vector3();
+        const cameraEyePosition = new Vector3();
+        const headRelativePosition = new Vector3();
+
+        scene.onBeforeRenderObservable.add(() => {
+            const cameraRotation = mmdCamera.rotation;
+            Matrix.RotationYawPitchRollToRef(-cameraRotation.y, -cameraRotation.x, -cameraRotation.z, rotationMatrix);
+
+            Vector3.TransformNormalFromFloatsToRef(0, 0, 1, rotationMatrix, cameraNormal);
+
+            mmdCamera.position.addToRef(
+                Vector3.TransformCoordinatesFromFloatsToRef(0, 0, mmdCamera.distance, rotationMatrix, cameraEyePosition),
+                cameraEyePosition
+            );
+
+            defaultPipeline.depthOfField.focusDistance = (Vector3.Dot(headRelativePosition, cameraNormal) / Vector3.Dot(cameraNormal, cameraNormal)) * 1000;
+        });
+
         let lastClickTime = -Infinity;
-        canvas.onclick = (): void => {
+        _canvas.onclick = (): void => {
             const currentTime = performance.now();
             if (500 < currentTime - lastClickTime) {
                 lastClickTime = currentTime;
@@ -254,29 +226,12 @@ export class SceneBuilder implements ISceneBuilder {
             lastClickTime = -Infinity;
 
             if (scene.activeCamera === mmdCamera) {
-                scene.activeCamera = camera;
+                scene.activeCamera = arcRotateCamera;
             } else {
                 scene.activeCamera = mmdCamera;
             }
         };
 
-        // if you want to use inspector, uncomment following line.
-        // Inspector.Show(scene, { });
-
-        // webxr experience for AR
-        const webXrExperience = await scene.createDefaultXRExperienceAsync({
-            uiOptions: {
-                sessionMode: "immersive-ar",
-                referenceSpaceType: "local-floor"
-            }
-        });
-        if (webXrExperience.baseExperience !== undefined) {
-            // post process seems not working on immersive-ar
-            // webXrExperience.baseExperience.sessionManager.onXRFrameObservable.addOnce(() => {
-            //     defaultPipeline.addCamera(webXrExperience.baseExperience.camera);
-            // });
-            webXrExperience.baseExperience.sessionManager.worldScalingFactor = 15;
-        }
 
         return scene;
     }
