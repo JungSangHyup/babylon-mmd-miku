@@ -1,0 +1,2 @@
+skin	F9E4D2
+skin_AO	F4D6C1
