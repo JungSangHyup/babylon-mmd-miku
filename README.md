@@ -1,3 +1,9 @@
+## This was created for studying babylon-mmd.
+
+build Site: https://jungsanghyup.github.io/babylon-mmd-miku/
+
+
+---------------------------------------------------
 ## babylon-mmd-template
 
 Best practice for using babylon-mmd.
