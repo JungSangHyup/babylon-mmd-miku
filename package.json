@@ -6,6 +6,7 @@
         "start": "webpack serve --mode development",
         "watch": "webpack --watch",
         "build": "webpack --env production",
+        "deploy": "npm run build && gh-pages -d dist",
         "lint": "eslint --ext .ts,.tsx . --fix --cache"
     },
     "repository": {
@@ -26,6 +27,7 @@
         "eslint-plugin-simple-import-sort": "^10.0.0",
         "eslint-webpack-plugin": "^4.0.1",
         "file-loader": "^6.2.0",
+        "gh-pages": "^6.3.0",
         "html-loader": "^5.0.0",
         "html-webpack-plugin": "^5.6.0",
         "ts-loader": "^9.5.1",
