@@ -36,9 +36,18 @@ import {
 import type {Engine} from "@babylonjs/core/Engines/engine";
 import {Vector3} from "@babylonjs/core/Maths/math.vector";
 import {Scene} from "@babylonjs/core/scene";
+// eslint-disable-next-line @typescript-eslint/naming-convention
 import HavocPhysics from "@babylonjs/havok";
 import type {BpmxLoader, MmdMesh, MmdStandardMaterialBuilder} from "babylon-mmd";
-import {BvmdLoader, MmdPhysics, MmdRuntime, PmxLoader, SdefInjector, StreamAudioPlayer} from "babylon-mmd";
+import {
+    BvmdLoader,
+    MmdPhysics,
+    MmdPlayerControl,
+    MmdRuntime,
+    PmxLoader,
+    SdefInjector,
+    StreamAudioPlayer
+} from "babylon-mmd";
 import {MmdCamera} from "babylon-mmd/esm/Runtime/mmdCamera";
 
 import type {ISceneBuilder} from "./baseRuntime";
@@ -130,10 +139,6 @@ export class SceneBuilder implements ISceneBuilder {
         const mmdRuntime = new MmdRuntime(scene,  new MmdPhysics(scene));
         mmdRuntime.register(scene);
         mmdRuntime.setCamera(mmdCamera);
-
-        mmdRuntime.playAnimation();
-
-
 
         const audioPlayer = new StreamAudioPlayer(scene);
         audioPlayer.preservesPitch = false;
@@ -227,11 +232,14 @@ export class SceneBuilder implements ISceneBuilder {
 
             if (scene.activeCamera === mmdCamera) {
                 scene.activeCamera = arcRotateCamera;
+                mmdRuntime.pauseAnimation();
             } else {
                 scene.activeCamera = mmdCamera;
+                mmdRuntime.playAnimation();
             }
         };
-
+        const mmdPlayerControl = new MmdPlayerControl(scene, mmdRuntime, audioPlayer);
+        mmdPlayerControl.showPlayerControl();
 
         return scene;
     }
